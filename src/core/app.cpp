@@ -7,14 +7,12 @@
 #include "../internal/graphics_backend.h"
 #include "../internal/input_backend.h"
 
-using namespace Blah;
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#endif
 
-namespace
-{
-	Config app_config;
-	bool app_is_running = false;
-	bool app_is_exiting = false;
-}
+using namespace Blah;
 
 Config::Config()
 {
@@ -34,47 +32,15 @@ Config::Config()
 	on_error = nullptr;
 }
 
-bool App::run(const Config* c)
+namespace
 {
-	BLAH_ASSERT(!app_is_running, "The Application is already running");
-	BLAH_ASSERT(c != nullptr, "The Application requires a valid Config");
-	BLAH_ASSERT(c->name != nullptr, "The Application Name cannot be null");
-	BLAH_ASSERT(c->width > 0 && c->height > 0, "The Width and Height must be larget than 0");
-	BLAH_ASSERT(c->max_updates > 0, "Max Updates must be >= 1");
-	BLAH_ASSERT(c->target_framerate > 0, "Target Framerate must be >= 1");
-
-	app_config = *c;
-	app_is_running = true;
-	app_is_exiting = false;
-
-	// initialize the system
-	if (!PlatformBackend::init(&app_config))
-	{
-		Log::error("Failed to initialize Platform module");
-		return false;
-	}
-
-	// initialize graphics
-	if (!GraphicsBackend::init())
-	{
-		Log::error("Failed to initialize Graphics module");
-		return false;
-	}
-
-	// input
-	InputBackend::init();
-
-	// startup
-	if (app_config.on_startup != nullptr)
-		app_config.on_startup();
-
-	uint64_t time_last = PlatformBackend::time();
+	Config app_config;
+	bool app_is_running = false;
+	bool app_is_exiting = false;
+	uint64_t time_last;
 	uint64_t time_accumulator = 0;
 
-	// display window
-	PlatformBackend::ready();
-
-	while (!app_is_exiting)
+	void app_iterate()
 	{
 		// poll system events
 		PlatformBackend::frame();
@@ -143,8 +109,59 @@ bool App::run(const Config* c)
 			GraphicsBackend::after_render();
 			PlatformBackend::present();
 		}
-
 	}
+
+}
+
+bool App::run(const Config* c)
+{
+	BLAH_ASSERT(!app_is_running, "The Application is already running");
+	BLAH_ASSERT(c != nullptr, "The Application requires a valid Config");
+	BLAH_ASSERT(c->name != nullptr, "The Application Name cannot be null");
+	BLAH_ASSERT(c->width > 0 && c->height > 0, "The Width and Height must be larget than 0");
+	BLAH_ASSERT(c->max_updates > 0, "Max Updates must be >= 1");
+	BLAH_ASSERT(c->target_framerate > 0, "Target Framerate must be >= 1");
+
+	app_config = *c;
+	app_is_running = true;
+	app_is_exiting = false;
+
+	// initialize the system
+	if (!PlatformBackend::init(&app_config))
+	{
+		Log::error("Failed to initialize Platform module");
+		return false;
+	}
+
+	// initialize graphics
+	if (!GraphicsBackend::init())
+	{
+		Log::error("Failed to initialize Graphics module");
+		return false;
+	}
+
+	// input
+	InputBackend::init();
+
+	// startup
+	if (app_config.on_startup != nullptr)
+		app_config.on_startup();
+
+	time_last = PlatformBackend::time();
+	time_accumulator = 0;
+
+	// display window
+	PlatformBackend::ready();
+
+	// Begin main loop
+	// Emscripten requires the main loop be separated into its own call
+
+#ifdef __EMSCRIPTEN__
+	emscripten_set_main_loop(app_iterate, 0, 1);
+#else
+	while (!app_is_exiting)
+		app_iterate();
+#endif
 
 	// shutdown
 	if (app_config.on_shutdown != nullptr)

@@ -806,7 +806,7 @@ namespace Blah
 				state.backbuffer->Release();
 
 			// perform resize
-			hr = state.swap_chain->ResizeBuffers(2, next_size.x, next_size.y, DXGI_FORMAT_B8G8R8A8_UNORM, 0);
+			hr = state.swap_chain->ResizeBuffers(0, next_size.x, next_size.y, DXGI_FORMAT_B8G8R8A8_UNORM, 0);
 			BLAH_ASSERT(SUCCEEDED(hr), "Failed to update Backbuffer on Resize");
 			state.last_size = next_size;
 
@@ -1338,7 +1338,15 @@ namespace Blah
 			blend.alpha_src == BlendFactor::One && blend.alpha_dst == BlendFactor::Zero
 			);
 
-		desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		desc.RenderTarget[0].RenderTargetWriteMask = 0;
+		if (((int)blend.mask & (int)BlendMask::Red) == (int)BlendMask::Red)
+			desc.RenderTarget[0].RenderTargetWriteMask |= D3D11_COLOR_WRITE_ENABLE_RED;
+		if (((int)blend.mask & (int)BlendMask::Green) == (int)BlendMask::Green)
+			desc.RenderTarget[0].RenderTargetWriteMask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
+		if (((int)blend.mask & (int)BlendMask::Blue) == (int)BlendMask::Blue)
+			desc.RenderTarget[0].RenderTargetWriteMask |= D3D11_COLOR_WRITE_ENABLE_BLUE;
+		if (((int)blend.mask & (int)BlendMask::Alpha) == (int)BlendMask::Alpha)
+			desc.RenderTarget[0].RenderTargetWriteMask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
 
 		if (desc.RenderTarget[0].BlendEnable)
 		{

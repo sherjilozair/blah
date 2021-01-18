@@ -81,6 +81,10 @@ bool PlatformBackend::init(const Config* config)
 	{
 		flags |= SDL_WINDOW_OPENGL;
 
+#ifdef __EMSCRIPTEN__
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
@@ -93,6 +97,7 @@ bool PlatformBackend::init(const Config* config)
 		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
+#endif
 	}
 	// enable DirectX
 	else if (App::renderer() == Renderer::D3D11)
@@ -140,9 +145,13 @@ bool PlatformBackend::init(const Config* config)
 
 void PlatformBackend::ready()
 {
+#ifndef __EMSCRIPTEN__
 	// enable V-Sync
+	// TODO:
+	// This should be a toggle or controllable in some way
 	if (App::renderer() == Renderer::OpenGL)
 		SDL_GL_SetSwapInterval(1);
+#endif
 }
 
 void PlatformBackend::shutdown()
@@ -165,6 +174,9 @@ uint64_t PlatformBackend::time()
 {
 	return (uint64_t)SDL_GetTicks();
 }
+
+// Macro defined by X11 conflicts with MouseButton enum
+#undef None
 
 void PlatformBackend::frame()
 {
@@ -567,7 +579,9 @@ void PlatformBackend::dir_enumerate(Vector<FilePath>& list, const char* path, bo
 			if (dp->d_name[0] == '.')
 				continue;
 
-			FilePath subpath = FilePath(path).append(dp->d_name);
+			FilePath subpath = FilePath(path);
+			if (subpath.end()[-1] != '/') subpath = subpath.append("/");
+			subpath = subpath.append(dp->d_name);
 			list.push_back(subpath);
 
 			if (recursive && dp->d_type == DT_DIR)
